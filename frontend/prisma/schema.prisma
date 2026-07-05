@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum JobCategory {
+  FRESHER
+  INTERNSHIP
+  REMOTE
+  WORK_FROM_HOME
+  OFF_CAMPUS
+  EXPERIENCED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  REMOTE
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  logo        String?
+  description String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model Job {
+  id               String      @id @default(cuid())
+  searchCode       String      @unique
+  companyName      String
+  companyLogo      String?
+  companyId        String?
+  company          Company?    @relation(fields: [companyId], references: [id])
+  role             String
+  category         JobCategory
+  jobType          JobType     @default(FULL_TIME)
+  location         String
+  experience       String
+  qualification    String?
+  salary           String?
+  description      String      @db.Text
+  responsibilities String[]
+  skills           String[]
+  applyLink        String
+  postedDate       DateTime    @default(now())
+  featured         Boolean     @default(false)
+  trending         Boolean     @default(false)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([category, postedDate])
+  @@index([searchCode])
+  @@index([companyName])
+  @@index([role])
+  @@index([location])
+  @@index([featured])
+  @@index([trending])
+}
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+}
