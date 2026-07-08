@@ -90,6 +90,9 @@ function extractCommentFromPayload(body) {
  */
 async function receiveWebhook(req, res) {
   try {
+    logger.info("========== RAW WEBHOOK ==========");
+    logger.info(JSON.stringify(req.body, null, 2));
+    logger.info("=================================");
     logger.info("Webhook received", {
       object: req.body?.object ?? "unknown"
     });
