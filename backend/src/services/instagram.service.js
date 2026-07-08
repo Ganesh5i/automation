@@ -27,7 +27,7 @@ function getGraphApiVersion() {
  * @returns {string} Base URL (e.g. "https://graph.facebook.com/v21.0")
  */
 function getGraphApiBaseUrl() {
-  return `https://graph.facebook.com/${getGraphApiVersion()}`;
+  return `https://graph.instagram.com/${getGraphApiVersion()}`;
 }
 
 /**
