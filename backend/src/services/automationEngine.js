@@ -1,7 +1,7 @@
 const { processKeyword } = require("./keywordEngine");
 const { generateAIResponse } = require("./ai.service");
 const { getJobBySearchCode } = require("./supabase.service");
-const { sendInstagramDM } = require("./instagram.service");
+const { sendInstagramDM, sendPrivateReply } = require("./instagram.service");
 const { logger } = require("../utils/logger");
 
 /**
@@ -88,9 +88,15 @@ function buildDmMessageFromResult(result) {
 /**
  * Send a pre-built Instagram DM and log the outcome.
  *
+ * According to Meta's official documentation for Private Replies:
+ * https://developers.facebook.com/docs/instagram-platform/private-replies/
+ *
+ * When replying to a comment for the first time, use comment_id instead of user ID.
+ * This bypasses the 24-hour messaging window restriction.
+ *
  * @param {string} recipientId - Instagram-scoped user ID (IGSID)
  * @param {string} dmMessage - Message text to send
- * @param {{ source?: string, status?: string, searchCode?: string }} logContext - Logging context
+ * @param {{ source?: string, status?: string, searchCode?: string, commentId?: string }} logContext - Logging context
  * @returns {Promise<{ success: boolean, error?: string }>}
  */
 async function sendAutomationDm(recipientId, dmMessage, logContext = {}) {
@@ -100,19 +106,36 @@ async function sendAutomationDm(recipientId, dmMessage, logContext = {}) {
 
   logger.info("DM request", {
     recipientId,
+    commentId: logContext.commentId,
     ...logContext
   });
 
-  const dmResult = await sendInstagramDM(recipientId, dmMessage);
+  // Use Private Reply API when commentId is available (first reply after comment)
+  // This bypasses the "Outside Allowed Window" error
+  let dmResult;
+  if (logContext.commentId) {
+    logger.info("Using Private Reply API (comment_id)", {
+      commentId: logContext.commentId,
+      recipientId
+    });
+    dmResult = await sendPrivateReply(logContext.commentId, dmMessage);
+  } else {
+    logger.info("Using standard DM API (user_id)", {
+      recipientId
+    });
+    dmResult = await sendInstagramDM(recipientId, dmMessage);
+  }
 
   if (dmResult.success) {
     logger.info("DM sent successfully", {
       recipientId,
+      commentId: logContext.commentId,
       ...logContext
     });
   } else {
     logger.error("DM send failed", {
       recipientId,
+      commentId: logContext.commentId,
       error: dmResult.error,
       ...logContext
     });
@@ -126,9 +149,10 @@ async function sendAutomationDm(recipientId, dmMessage, logContext = {}) {
  *
  * @param {string} recipientId - Instagram-scoped user ID (IGSID)
  * @param {{ success: boolean, source?: string, data?: object }} result - Automation result
+ * @param {{ commentId?: string }} context - Additional context including commentId
  * @returns {Promise<void>}
  */
-async function dispatchResultDm(recipientId, result) {
+async function dispatchResultDm(recipientId, result, context = {}) {
   if (!recipientId || !result?.success) {
     return;
   }
@@ -143,7 +167,10 @@ async function dispatchResultDm(recipientId, result) {
     return;
   }
 
-  await sendAutomationDm(recipientId, dmMessage, { source: result.source });
+  await sendAutomationDm(recipientId, dmMessage, {
+    source: result.source,
+    commentId: context.commentId
+  });
 }
 
 /**
@@ -151,13 +178,15 @@ async function dispatchResultDm(recipientId, result) {
  *
  * @param {string} recipientId - Instagram-scoped user ID (IGSID)
  * @param {string} searchCode - Search code that was not found
+ * @param {{ commentId?: string }} context - Additional context including commentId
  * @returns {Promise<void>}
  */
-async function dispatchSearchCodeNotFoundDm(recipientId, searchCode) {
+async function dispatchSearchCodeNotFoundDm(recipientId, searchCode, context = {}) {
   await sendAutomationDm(recipientId, SEARCH_CODE_NOT_FOUND_DM, {
     source: "search_code",
     status: "not_found",
-    searchCode
+    searchCode,
+    commentId: context.commentId
   });
 }
 
@@ -186,7 +215,7 @@ async function processIncomingMessage(message, recipientId = null, context = {})
         keyword: result.data?.type
       });
 
-      await dispatchResultDm(recipientId, result);
+      await dispatchResultDm(recipientId, result, { commentId: context.commentId });
       return result;
     }
 
@@ -214,7 +243,7 @@ async function processIncomingMessage(message, recipientId = null, context = {})
       });
 
       if (!isFound) {
-        await dispatchSearchCodeNotFoundDm(recipientId, searchCode);
+        await dispatchSearchCodeNotFoundDm(recipientId, searchCode, { commentId: context.commentId });
         return {
           success: false,
           message: "Search Code not found"
@@ -232,7 +261,7 @@ async function processIncomingMessage(message, recipientId = null, context = {})
         }
       };
 
-      await dispatchResultDm(recipientId, databaseResult);
+      await dispatchResultDm(recipientId, databaseResult, { commentId: context.commentId });
       return databaseResult;
     }
 
@@ -275,7 +304,7 @@ async function processIncomingMessage(message, recipientId = null, context = {})
       }
     };
 
-    await dispatchResultDm(recipientId, aiResponse);
+    await dispatchResultDm(recipientId, aiResponse, { commentId: context.commentId });
     return aiResponse;
   } catch (err) {
     logger.error("Automation engine error", {

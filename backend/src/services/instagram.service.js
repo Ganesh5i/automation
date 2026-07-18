@@ -78,6 +78,30 @@ function buildDmPayload(recipientId, message) {
 }
 
 /**
+ * Build the request body for a private reply to a comment.
+ *
+ * According to Meta's official documentation for Private Replies:
+ * https://developers.facebook.com/docs/instagram-platform/private-replies/
+ *
+ * When sending a private reply to a commenter, use comment_id instead of user ID.
+ * This bypasses the 24-hour messaging window restriction for first-time replies.
+ *
+ * @param {string} commentId - Instagram comment ID from webhook
+ * @param {string} message - Plain-text message to send
+ * @returns {{ recipient: { comment_id: string }, message: { text: string } }}
+ */
+function buildPrivateReplyPayload(commentId, message) {
+  return {
+    recipient: {
+      comment_id: String(commentId)
+    },
+    message: {
+      text: String(message)
+    }
+  };
+}
+
+/**
  * Extract a readable error message from an axios / Graph API error.
  *
  * @param {unknown} error - Caught error object
@@ -153,12 +177,79 @@ async function sendInstagramDM(recipientId, message) {
   }
 }
 
+/**
+ * Send a private reply to an Instagram commenter via Meta Graph API.
+ *
+ * According to Meta's official documentation for Private Replies:
+ * https://developers.facebook.com/docs/instagram-platform/private-replies/
+ *
+ * This function should be used when replying to a comment for the first time.
+ * It uses comment_id instead of user ID, which bypasses the 24-hour messaging window.
+ *
+ * @param {string} commentId - Instagram comment ID from webhook
+ * @param {string} message - Text message to send
+ * @returns {Promise<{ success: true, recipientId?: string, messageId?: string } | { success: false, error: string }>}
+ */
+async function sendPrivateReply(commentId, message) {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    const error = "META_ACCESS_TOKEN is not configured";
+    logger.error("Instagram private reply send failed", { commentId, error });
+    return { success: false, error };
+  }
+
+  if (!commentId || !message) {
+    const error = "commentId and message are required";
+    logger.error("Instagram private reply send failed", { commentId, error });
+    return { success: false, error };
+  }
+
+  try {
+    const url = buildMessagesEndpoint();
+    const payload = buildPrivateReplyPayload(commentId, message);
+
+    const response = await axios.post(url, payload, {
+      params: {
+        access_token: accessToken
+      }
+    });
+
+    logger.info("Instagram private reply sent successfully", {
+      commentId,
+      apiVersion: getGraphApiVersion(),
+      response: response.data
+    });
+
+    return {
+      success: true,
+      recipientId: response.data?.recipient_id,
+      messageId: response.data?.message_id
+    };
+  } catch (error) {
+    const errorMessage = extractGraphApiError(error);
+
+    logger.error("Instagram private reply send failed", {
+      commentId,
+      apiVersion: getGraphApiVersion(),
+      error: errorMessage
+    });
+
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+}
+
 module.exports = {
   sendInstagramDM,
+  sendPrivateReply,
   getGraphApiVersion,
   getGraphApiBaseUrl,
   getAccessToken,
   buildMessagesEndpoint,
   buildDmPayload,
+  buildPrivateReplyPayload,
   extractGraphApiError
 };
