@@ -46,6 +46,20 @@ function createApp() {
     res.json({ success: true });
   });
 
+  // Debug route to check environment variables
+  app.get("/debug/env", (req, res) => {
+    const { env } = require("./config/env");
+    res.json({
+      hasMetaAccessToken: !!env.META_ACCESS_TOKEN,
+      hasMetaAppId: !!env.META_APP_ID,
+      hasMetaAppSecret: !!env.META_APP_SECRET,
+      metaAccessTokenLength: env.META_ACCESS_TOKEN.length,
+      metaAppId: env.META_APP_ID,
+      metaIgUserId: env.META_IG_USER_ID,
+      metaGraphApiVersion: env.META_GRAPH_API_VERSION
+    });
+  });
+
   // Routes
   app.use("/", webhookRouter);
   app.use("/", testRoutes);
