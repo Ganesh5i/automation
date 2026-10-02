@@ -1,6 +1,7 @@
 const axios = require("axios");
 const { env } = require("../config/env");
 const { logger } = require("../utils/logger");
+const { getValidToken } = require("./tokenManager.service");
 
 /**
  * Instagram DM Service
@@ -31,12 +32,21 @@ function getGraphApiBaseUrl() {
 }
 
 /**
- * Read the Meta access token from centralized environment config.
+ * Read the Meta access token from token manager.
+ * This ensures we always use a valid, non-expired token.
  *
- * @returns {string} Access token or empty string when not configured
+ * @returns {Promise<string>} Access token or empty string when not configured
  */
-function getAccessToken() {
-  return env.META_ACCESS_TOKEN || "";
+async function getAccessToken() {
+  try {
+    const token = await getValidToken();
+    return token || "";
+  } catch (error) {
+    logger.error("Failed to get valid access token", {
+      error: error.message
+    });
+    return "";
+  }
 }
 
 /**
@@ -131,7 +141,7 @@ function extractGraphApiError(error) {
  * @returns {Promise<{ success: true } | { success: false, error: string }>}
  */
 async function sendInstagramDM(recipientId, message) {
-  const accessToken = getAccessToken();
+  const accessToken = await getAccessToken();
 
   if (!accessToken) {
     const error = "META_ACCESS_TOKEN is not configured";
@@ -191,7 +201,7 @@ async function sendInstagramDM(recipientId, message) {
  * @returns {Promise<{ success: true, recipientId?: string, messageId?: string } | { success: false, error: string }>}
  */
 async function sendPrivateReply(commentId, message) {
-  const accessToken = getAccessToken();
+  const accessToken = await getAccessToken();
 
   if (!accessToken) {
     const error = "META_ACCESS_TOKEN is not configured";

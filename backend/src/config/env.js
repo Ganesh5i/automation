@@ -24,6 +24,8 @@ const env = Object.freeze({
   META_APP_ID: process.env.META_APP_ID || "",
   META_APP_SECRET: process.env.META_APP_SECRET || "",
   META_ACCESS_TOKEN: process.env.META_ACCESS_TOKEN || "",
+  META_IG_USER_ID: process.env.META_IG_USER_ID || "",
+  META_GRAPH_API_VERSION: process.env.META_GRAPH_API_VERSION || "v21.0",
   SUPABASE_URL: process.env.SUPABASE_URL || "",
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || ""
