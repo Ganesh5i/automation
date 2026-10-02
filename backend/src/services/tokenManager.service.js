@@ -214,6 +214,11 @@ async function initialize() {
     return;
   }
 
+  logger.info("Initial token configured", {
+    tokenLength: tokenState.accessToken.length,
+    tokenPrefix: tokenState.accessToken.substring(0, 10) + "..."
+  });
+
   // Validate current token
   const isValid = await validateToken(tokenState.accessToken);
 
@@ -221,8 +226,9 @@ async function initialize() {
     logger.warn("Current token is invalid, attempting refresh");
     const refreshed = await refreshToken();
     if (!refreshed) {
-      logger.error("Failed to refresh invalid token. Please check META_ACCESS_TOKEN in .env");
-      return;
+      logger.error("Failed to refresh invalid token. The token may be expired. Please generate a new long-lived Page Access Token from Meta Developer Dashboard and update META_ACCESS_TOKEN in environment variables.");
+      // Keep the old token for now - it might still work for some endpoints
+      logger.warn("Continuing with existing token (may fail for API calls)");
     }
   }
 
@@ -239,7 +245,8 @@ async function initialize() {
 
   logger.info("Token manager initialized", {
     expiresAt: tokenState.expiresAt,
-    refreshCheckInterval: `${REFRESH_CHECK_INTERVAL / (60 * 60 * 1000)} hours`
+    refreshCheckInterval: `${REFRESH_CHECK_INTERVAL / (60 * 60 * 1000)} hours`,
+    hasToken: !!tokenState.accessToken
   });
 }
 
